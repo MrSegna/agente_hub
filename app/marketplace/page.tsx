@@ -1,10 +1,9 @@
 "use client"
 
-import { useState } from "react"
-import { Search, Filter } from "lucide-react"
+import { useState, useEffect } from "react"
+import { Search } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
-import { Button } from "@/components/ui/button"
 import {
   Select,
   SelectContent,
@@ -14,161 +13,46 @@ import {
 } from "@/components/ui/select"
 import { MarketplaceOrderCard } from "@/components/ui/marketplace-order-card"
 import { MarketplaceTicketCard } from "@/components/ui/marketplace-ticket-card"
+import { PageContainer } from "@/components/page-container"
+import { getOrders, getTickets } from "@/lib/services/marketplace-service"
 import type { Order, Ticket, OrderStatus, TicketStatus } from "@/types/marketplace"
 
-// Dados de exemplo - substituir pela integração real com TinyERP
-const mockOrders: Order[] = [
-  {
-    id: "1",
-    platform: "olist",
-    orderNumber: "123456",
-    customer: {
-      name: "João Silva",
-      email: "joao@example.com",
-      id: "cust1",
-    },
-    status: "confirmed",
-    items: [
-      {
-        id: "item1",
-        productId: "prod1",
-        productName: "Smartphone XYZ",
-        quantity: 1,
-        price: 1299.99,
-        total: 1299.99,
-      },
-    ],
-    total: 1299.99,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-    shipping: {
-      address: {
-        street: "Rua Principal",
-        number: "123",
-        neighborhood: "Centro",
-        city: "São Paulo",
-        state: "SP",
-        zipCode: "01001-000",
-      },
-    },
-    payment: {
-      method: "credit_card",
-      status: "approved",
-      installments: 3,
-      total: 1299.99,
-      paidAt: new Date(),
-    },
-  },
-  {
-    id: "2",
-    platform: "olist",
-    orderNumber: "123457",
-    customer: {
-      name: "Maria Santos",
-      email: "maria@example.com",
-      id: "cust2",
-    },
-    status: "shipped",
-    items: [
-      {
-        id: "item2",
-        productId: "prod2",
-        productName: "Notebook ABC",
-        quantity: 1,
-        price: 3499.99,
-        total: 3499.99,
-      },
-    ],
-    total: 3499.99,
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24), // 1 dia atrás
-    updatedAt: new Date(),
-    shipping: {
-      address: {
-        street: "Av. Secundária",
-        number: "456",
-        neighborhood: "Jardins",
-        city: "Rio de Janeiro",
-        state: "RJ",
-        zipCode: "20000-000",
-      },
-    },
-    payment: {
-      method: "credit_card",
-      status: "approved",
-      installments: 6,
-      total: 3499.99,
-      paidAt: new Date(),
-    },
-  },
-]
-
-const mockTickets: Ticket[] = [
-  {
-    id: "1",
-    orderId: "1",
-    type: "question",
-    status: "open",
-    priority: "medium",
-    description: "Cliente com dúvida sobre prazo de entrega",
-    createdAt: new Date(),
-    updatedAt: new Date(),
-    messages: [
-      {
-        id: "msg1",
-        ticketId: "1",
-        content: "Qual o prazo de entrega do pedido?",
-        createdAt: new Date(),
-        createdBy: {
-          id: "cust1",
-          name: "João Silva",
-          type: "customer",
-        },
-      },
-    ],
-  },
-  {
-    id: "2",
-    orderId: "2",
-    type: "dispute",
-    status: "pending",
-    priority: "high",
-    description: "Produto recebido com defeito",
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 2), // 2 horas atrás
-    updatedAt: new Date(),
-    messages: [
-      {
-        id: "msg2",
-        ticketId: "2",
-        content: "O produto chegou com a tela quebrada",
-        createdAt: new Date(),
-        createdBy: {
-          id: "cust2",
-          name: "Maria Santos",
-          type: "customer",
-        },
-      },
-    ],
-    assignedTo: {
-      id: "agent1",
-      name: "Carlos Suporte",
-    },
-  },
-]
-
 export default function MarketplacePage() {
+  const [orders, setOrders] = useState<Order[]>([])
+  const [tickets, setTickets] = useState<Ticket[]>([])
+  const [isLoading, setIsLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState<OrderStatus | "all">("all")
   const [ticketStatusFilter, setTicketStatusFilter] = useState<TicketStatus | "all">("all")
 
-  const filteredOrders = mockOrders.filter((order) => {
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const [ordersData, ticketsData] = await Promise.all([
+          getOrders(),
+          getTickets()
+        ]);
+        setOrders(ordersData)
+        setTickets(ticketsData)
+      } catch (error) {
+        console.error("Erro ao carregar dados:", error)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    loadData()
+  }, [])
+
+  const filteredOrders = orders.filter((order) => {
     const matchesSearch =
-      order.orderNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      order.customer.name.toLowerCase().includes(searchTerm.toLowerCase())
+      order.externalId.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      order.buyer.name.toLowerCase().includes(searchTerm.toLowerCase())
     const matchesStatus = statusFilter === "all" || order.status === statusFilter
     return matchesSearch && matchesStatus
   })
 
-  const filteredTickets = mockTickets.filter((ticket) => {
+  const filteredTickets = tickets.filter((ticket) => {
     const matchesSearch =
       ticket.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
       ticket.id.toLowerCase().includes(searchTerm.toLowerCase())
@@ -177,12 +61,10 @@ export default function MarketplacePage() {
   })
 
   return (
-    <div className="container mx-auto p-4">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold">Marketplace</h1>
-        <p className="text-muted-foreground">Gerencie seus pedidos e atendimentos do Olist</p>
-      </div>
-
+    <PageContainer 
+      title="Marketplace"
+      description="Gerencie seus pedidos e atendimentos"
+    >
       <Tabs defaultValue="orders" className="space-y-4">
         <TabsList>
           <TabsTrigger value="orders">Pedidos</TabsTrigger>
@@ -209,17 +91,26 @@ export default function MarketplacePage() {
             <SelectContent>
               <SelectItem value="all">Todos os status</SelectItem>
               <SelectItem value="pending">Pendente</SelectItem>
-              <SelectItem value="confirmed">Confirmado</SelectItem>
+              <SelectItem value="paid">Pago</SelectItem>
               <SelectItem value="shipped">Enviado</SelectItem>
               <SelectItem value="delivered">Entregue</SelectItem>
-              <SelectItem value="canceled">Cancelado</SelectItem>
-              <SelectItem value="returned">Devolvido</SelectItem>
+              <SelectItem value="cancelled">Cancelado</SelectItem>
+              <SelectItem value="refunded">Devolvido</SelectItem>
             </SelectContent>
           </Select>
         </div>
 
         <TabsContent value="orders" className="space-y-4">
-          {filteredOrders.length === 0 ? (
+          {isLoading ? (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {[...Array(6)].map((_, i) => (
+                <div 
+                  key={i}
+                  className="h-[200px] rounded-lg bg-muted animate-pulse"
+                />
+              ))}
+            </div>
+          ) : filteredOrders.length === 0 ? (
             <div className="text-center py-12">
               <p className="text-muted-foreground">Nenhum pedido encontrado</p>
             </div>
@@ -230,7 +121,6 @@ export default function MarketplacePage() {
                   key={order.id}
                   order={order}
                   onClick={() => {
-                    // Implementar visualização detalhada do pedido
                     console.log("Visualizar pedido:", order.id)
                   }}
                 />
@@ -255,7 +145,16 @@ export default function MarketplacePage() {
             </SelectContent>
           </Select>
 
-          {filteredTickets.length === 0 ? (
+          {isLoading ? (
+            <div className="grid gap-4 md:grid-cols-2">
+              {[...Array(4)].map((_, i) => (
+                <div 
+                  key={i}
+                  className="h-[150px] rounded-lg bg-muted animate-pulse"
+                />
+              ))}
+            </div>
+          ) : filteredTickets.length === 0 ? (
             <div className="text-center py-12">
               <p className="text-muted-foreground">Nenhum ticket encontrado</p>
             </div>
@@ -266,7 +165,6 @@ export default function MarketplacePage() {
                   key={ticket.id}
                   ticket={ticket}
                   onClick={() => {
-                    // Implementar visualização detalhada do ticket
                     console.log("Visualizar ticket:", ticket.id)
                   }}
                 />
@@ -275,6 +173,6 @@ export default function MarketplacePage() {
           )}
         </TabsContent>
       </Tabs>
-    </div>
+    </PageContainer>
   )
 }

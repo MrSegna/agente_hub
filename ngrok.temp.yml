@@ -1,0 +1,15 @@
+version: "2"
+authtoken: 2WaT6DGasfY9uRaQSgkHaZ3B0Lf_5czUcFEKSrugLJeUAmpuS
+log_level: info
+log_format: json
+log: ./ngrok.log
+web_addr: localhost:4040
+region: sa # South America
+
+tunnels:
+  app:
+    addr: 3000
+    proto: http
+    bind_tls: true
+    host_header: localhost:3000
+    inspect: true

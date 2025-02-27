@@ -1,203 +1,204 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import { Input } from "@/components/ui/input"
-import { Button } from "@/components/ui/button"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { MessageList } from "@/components/ui/message-list"
-import { ConversationList } from "@/components/ui/conversation-list"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { SendHorizontal } from "lucide-react"
-import type { Conversation, Message } from "@/types/messaging"
-
-// Dados de exemplo - substituir pela integração real
-const mockConversations: Conversation[] = [
-  {
-    id: "1",
-    platform: "whatsapp",
-    customerId: "customer1",
-    customerName: "João Silva",
-    lastMessage: {
-      id: "msg1",
-      conversationId: "1",
-      platform: "whatsapp",
-      type: "text",
-      content: "Olá, preciso de ajuda com meu pedido",
-      timestamp: new Date(),
-      status: "read",
-      metadata: {
-        customerName: "João Silva",
-        platformId: "customer1",
-      },
-    },
-    unreadCount: 2,
-    status: "active",
-    tags: ["suporte", "pedido"],
-  },
-  {
-    id: "2",
-    platform: "instagram",
-    customerId: "customer2",
-    customerName: "Maria Santos",
-    lastMessage: {
-      id: "msg2",
-      conversationId: "2",
-      platform: "instagram",
-      type: "text",
-      content: "Quando vocês terão novos produtos?",
-      timestamp: new Date(),
-      status: "delivered",
-      metadata: {
-        customerName: "Maria Santos",
-        platformId: "customer2",
-      },
-    },
-    unreadCount: 0,
-    status: "active",
-    tags: ["vendas"],
-  },
-]
-
-const mockMessages: Message[] = [
-  {
-    id: "msg1",
-    conversationId: "1",
-    platform: "whatsapp",
-    type: "text",
-    content: "Olá, preciso de ajuda com meu pedido",
-    timestamp: new Date(Date.now() - 1000 * 60 * 5), // 5 minutos atrás
-    status: "read",
-    metadata: {
-      customerName: "João Silva",
-      platformId: "customer1",
-    },
-  },
-  {
-    id: "msg2",
-    conversationId: "1",
-    platform: "whatsapp",
-    type: "text",
-    content: "Claro! Em que posso ajudar?",
-    timestamp: new Date(Date.now() - 1000 * 60 * 4), // 4 minutos atrás
-    status: "read",
-    metadata: {
-      customerName: "Atendente",
-      platformId: "agent1",
-    },
-  },
-]
+import React, { useState } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { MessageList } from "@/components/ui/message-list";
+import { ConversationList } from "@/components/ui/conversation-list";
+import { useWhatsApp } from "@/hooks/use-whatsapp";
+import { useConversations } from "@/hooks/use-conversations";
+import { toast } from "@/components/ui/use-toast";
+import Link from "next/link";
 
 export default function MessagingPage() {
-  const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null)
-  const [newMessage, setNewMessage] = useState("")
-  
-  const handleSendMessage = () => {
-    if (!newMessage.trim() || !selectedConversation) return
-    
-    // Aqui implementar a lógica de envio real
-    console.log("Enviando mensagem:", {
-      conversationId: selectedConversation.id,
-      content: newMessage,
-    })
-    
-    setNewMessage("")
+  const { isConnected, isConfigured, isLoading: whatsappLoading, error: whatsappError, testConnection, sendMessage } = useWhatsApp();
+  const { selectedConversation, createConversation, refreshConversations } = useConversations();
+  const [phoneNumber, setPhoneNumber] = useState("");
+  const [messageText, setMessageText] = useState("");
+  const [isSending, setIsSending] = useState(false);
+
+  const handleTestConnection = async () => {
+    try {
+      await testConnection();
+      toast({
+        title: isConnected ? "Conexão estabelecida" : "Falha na conexão",
+        description: whatsappError || "Teste de conexão realizado com sucesso.",
+        variant: isConnected ? "default" : "destructive",
+      });
+    } catch (err) {
+      toast({
+        title: "Erro",
+        description: "Falha ao testar conexão com WhatsApp",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleSendMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!phoneNumber || !messageText) {
+      toast({
+        title: "Campos obrigatórios",
+        description: "Por favor, preencha o número e a mensagem",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setIsSending(true);
+
+      // Se não houver conversa selecionada ou o número for diferente, criar nova conversa
+      if (!selectedConversation || selectedConversation.participants[0] !== phoneNumber) {
+        await createConversation(phoneNumber, messageText);
+      }
+
+      // Enviar mensagem pelo WhatsApp
+      await sendMessage(phoneNumber, messageText);
+      
+      // Limpar campo de mensagem e atualizar conversas
+      setMessageText("");
+      await refreshConversations();
+
+      toast({
+        title: "Mensagem enviada",
+        description: "A mensagem foi enviada com sucesso",
+      });
+    } catch (err) {
+      toast({
+        title: "Erro",
+        description: "Falha ao enviar mensagem",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  if (!isConfigured) {
+    return (
+      <div className="container mx-auto p-4">
+        <Card>
+          <CardHeader>
+            <CardTitle>Configuração Necessária</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-col items-center gap-4 p-4 text-center">
+              <p className="text-lg font-medium">
+                Por favor, configure sua integração com WhatsApp para prosseguir.
+              </p>
+              <p className="text-sm text-muted-foreground">
+                Você precisa configurar suas credenciais do WhatsApp Business API no arquivo .env
+              </p>
+              <div className="flex gap-2">
+                <Button asChild>
+                  <Link href="/settings">Configurar WhatsApp</Link>
+                </Button>
+                <Button variant="outline" asChild>
+                  <Link href="/">Voltar</Link>
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
   }
 
   return (
     <div className="container mx-auto p-4">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold">Central de Mensagens</h1>
-        <p className="text-muted-foreground">Gerencie todas as conversas em um só lugar</p>
-      </div>
-
-      <div className="grid grid-cols-12 gap-4">
-        {/* Lista de Conversas */}
-        <div className="col-span-12 md:col-span-4">
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle>Conversas</CardTitle>
-                <Badge variant="secondary">
-                  {mockConversations.filter(c => c.unreadCount > 0).length} não lidas
-                </Badge>
+      <div className="grid gap-4 md:grid-cols-12">
+        {/* Status da Conexão */}
+        <Card className="md:col-span-12">
+          <CardHeader>
+            <CardTitle>Status da Integração WhatsApp</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div
+                  className={`h-3 w-3 rounded-full ${
+                    isConnected ? "bg-green-500" : "bg-red-500"
+                  }`}
+                />
+                <span>{isConnected ? "Conectado" : "Desconectado"}</span>
               </div>
+              <Button
+                variant="outline"
+                onClick={handleTestConnection}
+                disabled={whatsappLoading}
+              >
+                {whatsappLoading ? "Testando..." : "Testar Conexão"}
+              </Button>
+            </div>
+            {whatsappError && (
+              <p className="mt-2 text-sm text-destructive">{whatsappError}</p>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Lista de Conversas */}
+        <Card className="md:col-span-4 h-[600px] overflow-y-auto">
+          <CardHeader>
+            <CardTitle>Conversas</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ConversationList />
+          </CardContent>
+        </Card>
+
+        {/* Área de Mensagens */}
+        <div className="flex flex-col gap-4 md:col-span-8">
+          <Card className="flex-1 h-[450px] overflow-y-auto">
+            <CardHeader>
+              <CardTitle>
+                {selectedConversation ? 
+                  `Conversa com ${selectedConversation.metadata.customerInfo?.name || selectedConversation.participants[0]}` :
+                  "Mensagens"
+                }
+              </CardTitle>
             </CardHeader>
             <CardContent>
-              <Tabs defaultValue="all" className="mb-4">
-                <TabsList className="grid w-full grid-cols-3">
-                  <TabsTrigger value="all">Todas</TabsTrigger>
-                  <TabsTrigger value="unread">Não lidas</TabsTrigger>
-                  <TabsTrigger value="assigned">Atribuídas</TabsTrigger>
-                </TabsList>
-              </Tabs>
-              <ConversationList
-                conversations={mockConversations}
-                selectedId={selectedConversation?.id}
-                onSelect={setSelectedConversation}
-              />
+              <MessageList />
             </CardContent>
           </Card>
-        </div>
 
-        {/* Área de Chat */}
-        <div className="col-span-12 md:col-span-8">
-          <Card className="h-full">
-            {selectedConversation ? (
-              <>
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <CardTitle>{selectedConversation.customerName}</CardTitle>
-                      <p className="text-sm text-muted-foreground">
-                        via {selectedConversation.platform}
-                      </p>
-                    </div>
-                    <div className="flex gap-2">
-                      {selectedConversation.tags.map((tag) => (
-                        <Badge key={tag} variant="outline">
-                          {tag}
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex h-[600px] flex-col">
-                    <MessageList
-                      className="flex-1"
-                      messages={mockMessages}
-                      currentUserId="agent1"
-                    />
-                    <div className="mt-4 flex gap-2">
-                      <Input
-                        placeholder="Digite sua mensagem..."
-                        value={newMessage}
-                        onChange={(e) => setNewMessage(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter" && !e.shiftKey) {
-                            e.preventDefault()
-                            handleSendMessage()
-                          }
-                        }}
-                      />
-                      <Button onClick={handleSendMessage}>
-                        <SendHorizontal className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </>
-            ) : (
-              <CardContent className="flex h-full items-center justify-center">
-                <p className="text-muted-foreground">
-                  Selecione uma conversa para começar
-                </p>
-              </CardContent>
-            )}
+          {/* Área de Envio */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Enviar Mensagem</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <form className="flex flex-col gap-4" onSubmit={handleSendMessage}>
+                <div className="flex gap-4">
+                  <Input
+                    type="tel"
+                    placeholder="Número do WhatsApp"
+                    value={phoneNumber}
+                    onChange={(e) => setPhoneNumber(e.target.value)}
+                    className="flex-1"
+                  />
+                  <Input
+                    type="text"
+                    placeholder="Mensagem"
+                    value={messageText}
+                    onChange={(e) => setMessageText(e.target.value)}
+                    className="flex-1"
+                  />
+                </div>
+                <Button 
+                  type="submit" 
+                  className="w-full"
+                  disabled={isSending || !isConnected || whatsappLoading}
+                >
+                  {isSending ? "Enviando..." : "Enviar Mensagem"}
+                </Button>
+              </form>
+            </CardContent>
           </Card>
         </div>
       </div>
     </div>
-  )
+  );
 }

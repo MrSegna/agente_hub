@@ -1,37 +1,35 @@
-import type React from "react"
-import type { Metadata } from "next"
-import { Inter } from "next/font/google"
-import "./globals.css"
-import { SidebarProvider } from "@/components/ui/sidebar"
-import { AppSidebar } from "@/components/app-sidebar"
+import { ThemeProvider } from "@/components/theme-provider";
+import AppSidebar from "@/components/app-sidebar";
+import "./globals.css";
+import { Inter } from "next/font/google";
 
-const inter = Inter({ subsets: ["latin"] })
+const inter = Inter({ subsets: ["latin"] });
 
-export const metadata: Metadata = {
-  title: "Gerenciador de Agentes IA",
-  description: "Gerenciador de Agentes de IA",
-    generator: 'v0.dev'
-}
+export const metadata = {
+  title: "Agent Model",
+  description: "Sistema de gestão de agentes IA",
+};
 
 export default function RootLayout({
   children,
 }: {
-  children: React.ReactNode
+  children: React.ReactNode;
 }) {
   return (
-    <html lang="pt-BR">
+    <html lang="pt-BR" suppressHydrationWarning>
       <body className={inter.className}>
-        <SidebarProvider defaultOpen>
-          <div className="flex min-h-screen">
+        <ThemeProvider>
+          <div className="flex h-screen bg-background overflow-hidden">
+            {/* Sidebar */}
             <AppSidebar />
-            <main className="flex-1">{children}</main>
+            
+            {/* Área principal */}
+            <main className="flex-1 md:pl-64 relative overflow-y-auto">
+              {children}
+            </main>
           </div>
-        </SidebarProvider>
+        </ThemeProvider>
       </body>
     </html>
-  )
+  );
 }
-
-
-
-import './globals.css'
